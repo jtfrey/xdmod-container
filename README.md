@@ -86,3 +86,28 @@ $ singularity shell instance://XDMoD-Caviness
 ```
 
 At this point, copying files to `/tmp/XDMoD-Caviness/upper/var/lib/XDMoD-ingest-queue/in` will see them processed in the runloop.  Point a web browser to http://localhost:8080/ to use the web application.
+
+## Helper Scripts
+
+The `sbin` directory includes a SysV-style script that can be used to start, stop, restart, and query status of instances of the Singularity container.
+
+To start a new or existing instance with the default container image and overlay directory:
+
+```
+$ sbin/instance Caviness start
+```
+
+To use a different container image and overlay directory:
+
+```
+$ sbin/instance --overlay=/tmp/XDMoD --image=./XDMoD-uge.sif Farber start
+```
+
+The `status` action returns 0 if the instance is running, non-zero otherwise:
+
+```
+$ sbin/instance Farber status
+```
+
+The `--verbose` option increases the amount of output displayed by the command, and the `--help` option summarizes the command and all options.
+

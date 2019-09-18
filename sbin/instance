@@ -1,0 +1,243 @@
+#!/bin/bash
+#
+# Start a service instance of XDMoD
+#
+
+POSITIONAL=()
+VERBOSE=0
+
+SINGIMG=/var/lib/xdmod/simg/XDMoD.sif
+
+SINGOPTS=(--net --dns 10.65.0.13 --network bridge --network-args "portmap=8080:8080/tcp")
+
+SINGOVERLAY_ROOT=/var/lib/xdmod/root
+SINGOVERLAY="<template>"
+
+usage() {
+    cat <<EOT
+usage:
+
+    $1 [options] <instance-name> <action>
+
+  options:
+
+    -h, --help          show command help
+    -v, --verbose       show additional information as command
+                        executes
+    -i, --image <img>   use the Singularity image at <img> to
+                        start the instance; can be any valid
+                        Singularity container format
+                        (default: $SINGIMG)
+    -o, --overlay <dir> use the specified directory <dir> as the
+                        overlay file system for the container;
+                        defaults to:
+
+                          ${SINGOVERLAY_ROOT}/<instance-name>
+
+  actions:
+
+    start               start the instance
+    stop                stop the instance
+    status              check instance is running (or not)
+    restart             stop the instance and immediately start again
+
+EOT
+}
+
+status() {
+    local verbose=$VERBOSE
+
+    if [ "$1" = '-q' -o "$1" = '--quiet' ]; then
+        verbose=0
+        shift
+    fi
+
+    local instance="XDMoD-$1"
+    local status_str="$(singularity instance list | grep "^$instance")"
+
+    if [ -z "$status_str" ]; then
+        [ $verbose -ne 0 ] && echo "INFO:   instance '$instance' not running"
+        return 1
+    fi
+    local regex="^$instance +([0-9]+) +(.*)$"
+    if [[ ! $status_str =~ $regex ]]; then
+        echo "ERROR:  status output was unreadable: $STATUS"
+        exit 1
+    fi
+    [ $verbose -ne 0 ] && echo "INFO:   instance '$instance' running (${BASH_REMATCH[2]} with PID ${BASH_REMATCH[1]})"
+    return 0
+}
+
+start() {
+    status --quiet "$1"
+    if [ $? -eq 0 ]; then
+        echo "INFO:   instance '$1' is already running"
+        return 254
+    fi
+    OUTPUT="$(singularity instance start --overlay "$SINGOVERLAY" "${SINGOPTS[@]}" "$SINGIMG" "XDMoD-$1" 2>&1)"
+    rc=$?
+    if [ $VERBOSE -ne 0 ]; then
+        if [ $rc -ne 0 ]; then
+            echo "ERROR:  cannot start instance '$1' (rc = $rc)"
+            printf "        - %s\n" "$OUTPUT"
+        else
+            echo "INFO:   started instance '$1'"
+        fi
+    fi
+    return $rc
+}
+
+stop() {
+    status --quiet "$1"
+    if [ $? -ne 0 ]; then
+        echo "ERROR:  cannot stop instance '$1' (not running)"
+        return 254
+    fi
+    OUTPUT="$(singularity instance stop "XDMoD-$1" 2>&1)"
+    rc=$?
+    if [ $VERBOSE -ne 0 ]; then
+        if [ $rc -ne 0 ]; then
+            echo "ERROR:  cannot stop instance '$1' (rc = $rc)"
+            printf "        - %s\n" "$OUTPUT"
+        else
+            echo "INFO:   stopped instance '$1'"
+        fi
+    fi
+    return $rc
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+
+        -h|--help)
+            usage "$0"
+            exit 0
+            ;;
+
+        -v|--verbose)
+            VERBOSE=1
+            ;;
+
+        -i|--image)
+            shift
+            if [ -z "$1" ]; then
+                echo "ERROR:  no container image provided with -i/--image option"
+                exit 1
+            fi
+            SINGIMG="$1"
+            ;;
+        --image=*)
+            if [[ ! "$1" =~ ^--image=(.+)$ ]]; then
+                echo "ERROR:  no container image provided with -i/--image option"
+                exit 1
+            fi
+            SINGIMG="${BASH_REMATCH[1]}"
+            ;;
+
+        -o|--overlay)
+            shift
+            if [ -z "$1" ]; then
+                echo "ERROR:  no directory provided with -o/--overlay option"
+                exit 1
+            fi
+            SINGIMG="$1"
+            ;;
+        --overlay=*)
+            if [[ ! "$1" =~ ^--overlay=(.+)$ ]]; then
+                echo "ERROR:  no directory provided with -o/--overlay option"
+                exit 1
+            fi
+            SINGOVERLAY="${BASH_REMATCH[1]}"
+            ;;
+
+        -*)
+            echo "ERROR:  unknown option: $1"
+            exit 1
+            ;;
+
+        *)
+            POSITIONAL+=("$1")
+            ;;
+
+    esac
+    shift
+done
+
+#
+# Basic argument error-checking:
+#
+if [ $(id -u) -ne 0 ]; then
+    echo "ERROR:  this program must be run as user 'root'"
+    exit 1
+fi
+if [ ${#POSITIONAL[@]} -eq 0 ]; then
+    echo "ERROR:  instance name and action must be provided"
+    usage "$0"
+    exit 1
+fi
+if [ ${#POSITIONAL[@]} -eq 1 ]; then
+    echo "ERROR:  action must be provided"
+    usage "$0"
+    exit 1
+fi
+
+#
+# Validate the overlay directory:
+#
+if [ "$SINGOVERLAY" = '<template>' ]; then
+    SINGOVERLAY="${SINGOVERLAY_ROOT}/${POSITIONAL[0]}"
+fi
+if [ ! -d "$SINGOVERLAY" ]; then
+    mkdir -p "$SINGOVERLAY"
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "ERROR:  could not create overlay directory '$SINGOVERLAY' (rc=$rc)"
+        exit $rc
+    fi
+    [ $VERBOSE -ne 0 ] && echo "INFO:   created overlay directory '$SINGOVERLAY'"
+fi
+
+
+#
+# Add singularity to the path:
+#
+export PATH="/opt/shared/singularity/3.2.1/bin:$PATH"
+
+#
+# Perform the action requested:
+#
+case "${POSITIONAL[1]}" in
+
+    start)
+        start "${POSITIONAL[0]}"
+        exit $?
+        ;;
+
+    stop)
+        stop "${POSITIONAL[0]}"
+        exit $?
+        ;;
+
+    restart)
+        stop "${POSITIONAL[0]}"
+        rc=$?
+        if [ $rc -ne 0 -a $rc -ne 254 ]; then
+            exit $?
+        fi
+        [ $VERBOSE -ne 0 ] && echo "INFO:   sleeping for a few seconds to allow cleanup..."
+        sleep 5
+        start "${POSITIONAL[0]}"
+        exit $?
+        ;;
+
+    status)
+        status "${POSITIONAL[0]}"
+        exit $?
+        ;;
+
+    *)
+        echo "ERROR:  unknown action: ${POSITIONAL[1]}"
+        exit 1
+        ;;
+
+esac
