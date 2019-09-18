@@ -6,6 +6,10 @@
 POSITIONAL=()
 VERBOSE=0
 
+RUNDIR=/var/lib/xdmod/run
+
+SINGPID=""
+
 SINGIMG=/var/lib/xdmod/simg/XDMoD.sif
 
 SINGOPTS=(--net --dns 10.65.0.13 --network bridge --network-args "portmap=8080:8080/tcp")
@@ -57,14 +61,15 @@ status() {
 
     if [ -z "$status_str" ]; then
         [ $verbose -ne 0 ] && echo "INFO:   instance '$instance' not running"
-        return 1
+        return 3
     fi
     local regex="^$instance +([0-9]+) +(.*)$"
     if [[ ! $status_str =~ $regex ]]; then
         echo "ERROR:  status output was unreadable: $STATUS"
-        exit 1
+        exit 42
     fi
-    [ $verbose -ne 0 ] && echo "INFO:   instance '$instance' running (${BASH_REMATCH[2]} with PID ${BASH_REMATCH[1]})"
+    SINGPID="${BASH_REMATCH[1]}"
+    [ $verbose -ne 0 ] && echo "INFO:   instance '$instance' running (${BASH_REMATCH[2]} with PID ${SINGPID})"
     return 0
 }
 
@@ -82,6 +87,21 @@ start() {
             printf "        - %s\n" "$OUTPUT"
         else
             echo "INFO:   started instance '$1'"
+        fi
+    fi
+    if [ $rc -eq 0 ]; then
+        status --quiet "$1"
+        rc=$?
+        if [ $rc -eq 0 ]; then
+            printf "%d\n" "$SINGPID" > "${RUNDIR}/$1.pid"
+            rc=$?
+            if [ $rc -eq 0 ]; then
+                [ $VERBOSE -ne 0 ] && echo "INFO:   wrote PID to ${RUNDIR}/$1.pid"
+            else
+                echo "ERROR:  unable to write PID to ${RUNDIR}/$1.pid (rc = $rc)"
+            fi
+        else
+            echo "ERROR:  unable to check status of started instance '$1'"
         fi
     fi
     return $rc
@@ -103,6 +123,11 @@ stop() {
             echo "INFO:   stopped instance '$1'"
         fi
     fi
+    if [ $rc -eq 0 ]; then
+        rm -f "${RUNDIR}/$1.pid"
+        rc=$?
+        [ $VERBOSE -ne 0 -a $rc -ne 0 ] && echo "WARNING:  failed to remove PID file ${RUNDIR}/$1.pid"
+    fi
     return $rc
 }
 
@@ -122,14 +147,14 @@ while [ $# -gt 0 ]; do
             shift
             if [ -z "$1" ]; then
                 echo "ERROR:  no container image provided with -i/--image option"
-                exit 1
+                exit 22
             fi
             SINGIMG="$1"
             ;;
         --image=*)
             if [[ ! "$1" =~ ^--image=(.+)$ ]]; then
                 echo "ERROR:  no container image provided with -i/--image option"
-                exit 1
+                exit 22
             fi
             SINGIMG="${BASH_REMATCH[1]}"
             ;;
@@ -138,21 +163,21 @@ while [ $# -gt 0 ]; do
             shift
             if [ -z "$1" ]; then
                 echo "ERROR:  no directory provided with -o/--overlay option"
-                exit 1
+                exit 22
             fi
             SINGIMG="$1"
             ;;
         --overlay=*)
             if [[ ! "$1" =~ ^--overlay=(.+)$ ]]; then
                 echo "ERROR:  no directory provided with -o/--overlay option"
-                exit 1
+                exit 22
             fi
             SINGOVERLAY="${BASH_REMATCH[1]}"
             ;;
 
         -*)
             echo "ERROR:  unknown option: $1"
-            exit 1
+            exit 22
             ;;
 
         *)
@@ -173,12 +198,16 @@ fi
 if [ ${#POSITIONAL[@]} -eq 0 ]; then
     echo "ERROR:  instance name and action must be provided"
     usage "$0"
-    exit 1
+    exit 22
 fi
 if [ ${#POSITIONAL[@]} -eq 1 ]; then
     echo "ERROR:  action must be provided"
     usage "$0"
-    exit 1
+    exit 22
+fi
+if [[ ! "${POSITIONAL[0]}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "ERROR:  invalid instance name: ${POSITIONAL[0]}"
+    exit 22
 fi
 
 #
@@ -237,7 +266,7 @@ case "${POSITIONAL[1]}" in
 
     *)
         echo "ERROR:  unknown action: ${POSITIONAL[1]}"
-        exit 1
+        exit 22
         ;;
 
 esac

@@ -111,3 +111,12 @@ $ sbin/instance Farber status
 
 The `--verbose` option increases the amount of output displayed by the command, and the `--help` option summarizes the command and all options.
 
+In addition, the `systemd` directory contains a templated service unit that integrates Singularity instances with systemd for automated startup/shutdown.  Adding our Farber instance above looks like:
+
+```
+$ cp systemd/xdmod-template.service /etc/systemd/system/xdmod@Farber.service
+$ systemctl daemon-reload
+$ systemctl enable xdmod@Farber.service
+$ systemctl start xdmod@Farber.service
+```
+

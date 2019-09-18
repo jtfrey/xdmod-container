@@ -1,0 +1,16 @@
+[Unit]
+Description=XDMoD web application container (%I)
+After=network.target var-lib-xdmod.mount
+
+[Service]
+Type=forking
+PIDFile=/var/lib/xdmod/run/%i.pid
+TimeoutStopSec=300s
+Restart=on-abnormal
+RestartSec=90s
+DisableControllers=io blkio memory devices pids
+ExecStart=/var/lib/xdmod/sbin/instance --verbose %i start
+ExecStop=/var/lib/xdmod/sbin/instance --verbose %i stop
+
+[Install]
+WantedBy=multi-user.target
