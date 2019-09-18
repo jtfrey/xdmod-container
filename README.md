@@ -23,6 +23,7 @@ These three directories will be created automatically by the entrypoint script i
 The container image is built in this repository directory using:
 
 ```
+$ cd Docker
 $ ROOT_PASSWORD="<password>" docker build --rm --tag local/xdmod:8.1.2
 ```
 
@@ -62,6 +63,7 @@ Rather than bind-mounting directories at specific paths as outline above for Doc
 The container image is built in this repository directory using:
 
 ```
+$ cd Singularity
 $ ROOT_PASSWORD="<password>" singularity build XDMoD-8.1.2.sif Singularity
 ```
 
@@ -87,7 +89,7 @@ $ singularity shell instance://XDMoD-Caviness
 
 At this point, copying files to `/tmp/XDMoD-Caviness/upper/var/lib/XDMoD-ingest-queue/in` will see them processed in the runloop.  Point a web browser to http://localhost:8080/ to use the web application.
 
-## Helper Scripts
+### Helper Scripts
 
 The `sbin` directory includes a SysV-style script that can be used to start, stop, restart, and query status of instances of the Singularity container.
 
