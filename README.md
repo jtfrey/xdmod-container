@@ -24,7 +24,7 @@ The container image is built in this repository directory using:
 
 ```
 $ cd Docker
-$ ROOT_PASSWORD="<password>" docker build --rm --tag local/xdmod:8.1.2
+$ ROOT_PASSWORD="<password>" docker build --rm --tag local/xdmod:8.1.2 .
 ```
 
 The following example illustrates the creation of an instance with persistent database and ingest queue directories:
