@@ -10,6 +10,8 @@
 #
 #   singularity instance start --overlay <path-to-writable-dir> --net --dns <dns-server-ip> \
 #                              --network bridge --network-args "portmap=8080:8080/tcp" \
+#                              --env CLUSTER_NAME="<cluster_name_for_xdmod-shredder>" \
+#                              --env RESOURCE_LOG_FORMAT="<resource_log_format_for_xdmod-shredder" \
 #                              <path-to-image> <instance-name>
 #
 # Initialize
@@ -24,40 +26,27 @@ Bootstrap: docker
 From: centos:7
 
 %labels
-    Version         "8.1.2"
+    Version         "9.5.0"
     Description     "XDMoD bundle containing database and web server" \
     Maintainer      "frey@udel.edu"
 
 %files
     XDMoD-start /usr/sbin/XDMoD-start
 
-%setup
-    #
-    # Install PhantomJS:
-    #
-    wget --directory-prefix=${SINGULARITY_ROOTFS}/tmp \
-                https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2
-    tar -C ${SINGULARITY_ROOTFS}/tmp -xf ${SINGULARITY_ROOTFS}/tmp/phantomjs-2.1.1-linux-x86_64.tar.bz2
-    install --owner=0 --group=0 --mode=0755 --preserve-timestamps \
-                ${SINGULARITY_ROOTFS}/tmp/phantomjs-2.1.1-linux-x86_64/bin/phantomjs \
-                ${SINGULARITY_ROOTFS}/usr/bin
-    rm -rf      ${SINGULARITY_ROOTFS}/tmp/phantomjs-2.1.1-linux-x86_64.tar.bz2 \
-                ${SINGULARITY_ROOTFS}/tmp/phantomjs-2.1.1-linux-x86_64
-
 %post
     yum -y update
     yum -y install  epel-release
-    yum -y install  sudo wget gmp-devel cronie logrotate fontconfig ghostscript \
+    yum -y install  sudo wget gmp-devel cronie logrotate \
                     coreutils shadow-utils tar xz bzip2 gzip zip jq \
-                    java-1.8.0-openjdk java-1.8.0-openjdk-devel
+                    libreoffice chromium-headless librsvg2-tools
     set -o pipefail && echo "root:${ROOT_PASSWORD}" | chpasswd
 
     #
     # Install Apache and PHP:
     #
-    yum -y install  httpd php php-cli php-gd php-mcrypt php-gmp \
+    yum -y install  httpd php php-cli php-gd php-gmp \
                     php-pdo php-xml php-pear-MDB2 php-pear-MDB2-Driver-mysql \
-                    php-mbstring
+                    php-mbstring php-pecl-apcu perl-Image-ExifTool
 
     #
     # Install MySQL:
@@ -67,7 +56,7 @@ From: centos:7
     #
     # Install XDMoD:
     #
-    yum -y install https://github.com/ubccr/xdmod/releases/download/v8.1.2/xdmod-8.1.2-1.0.el7.noarch.rpm
+    yum -y install https://github.com/ubccr/xdmod/releases/download/v9.5.0/xdmod-9.5.0-1.0.el7.noarch.rpm
 
     #
     # Ensure a mountpoint/directory exists for the data ingest pipeline:
@@ -75,7 +64,7 @@ From: centos:7
     mkdir --parents --mode=0755 /var/lib/XDMoD-ingest-queue/in
     mkdir --parents --mode=0755 /var/lib/XDMoD-ingest-queue/out
     mkdir --parents --mode=0755 /var/lib/XDMoD-ingest-queue/error
-    
+
     #
     # Make sure our entrypoint script is executable, etc:
     #
@@ -84,4 +73,3 @@ From: centos:7
 
 %startscript
    exec /usr/sbin/XDMoD-start "$@"
-

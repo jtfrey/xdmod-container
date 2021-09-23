@@ -24,7 +24,7 @@ The container image is built in this repository directory using:
 
 ```
 $ cd Docker
-$ ROOT_PASSWORD="<password>" docker build --rm --tag local/xdmod:8.1.2 .
+$ ROOT_PASSWORD="<password>" docker build --rm --tag local/xdmod:9.5.0 .
 ```
 
 The following example illustrates the creation of an instance with persistent database and ingest queue directories:
@@ -34,11 +34,15 @@ $ mkdir -p /tmp/XDMoD-Caviness/ingest-queue
 $ mkdir -p /tmp/XDMoD-Caviness/database
 $ docker run --detach --restart unless-stopped \
     --name XDMoD-Caviness \
+    --env CLUSTER_NAME="cc3" \
+    --env RESOURCE_LOG_FORMAT="slurm" \
     --volume "/tmp/XDMoD-Caviness/database:/var/lib/mysql:rw" \
     --volume "/tmp/XDMoD-Caviness/ingest-queue:/var/lib/XDMoD-ingest-queue:rw" \
     --publish 8080:8080
-    local/xdmod:8.1.2
+    local/xdmod:9.5.0
 ```
+
+The `CLUSTER_NAME` and `RESOURCE_LOG_FORMAT` are used in the entrypoint XDMoD-start script as arguments to `xdmod-shredder` for resource manager log file ingestion.  `RESOURCE_LOG_FORMAT` defaults to "slurm".  
 
 Once the instance is online, XDMoD must be initialized and the ingest queue activated:
 
@@ -64,7 +68,7 @@ The container image is built in this repository directory using:
 
 ```
 $ cd Singularity
-$ ROOT_PASSWORD="<password>" singularity build XDMoD-8.1.2.sif Singularity
+$ ROOT_PASSWORD="<password>" singularity build XDMoD-9.5.0.sif Singularity
 ```
 
 The following example illustrates the execution of an instance with an overlay file system:
@@ -73,8 +77,11 @@ The following example illustrates the execution of an instance with an overlay f
 $ mkdir -p /tmp/XDMoD-Caviness
 $ singularity instance start --overlay /tmp/XDMoD-Caviness --net --dns 10.65.0.13 \
     --network bridge --network-args "portmap=8080:8080/tcp" \
-    XDMoD-8.1.2.sif XDMoD-Caviness
+    --env CLUSTER_NAME="cc3" --env RESOURCE_LOG_FORMAT="slurm" \
+    XDMoD-9.5.0.sif XDMoD-Caviness
 ```
+
+The `CLUSTER_NAME` and `RESOURCE_LOG_FORMAT` are used in the entrypoint XDMoD-start script as arguments to `xdmod-shredder` for resource manager log file ingestion.  `RESOURCE_LOG_FORMAT` defaults to "slurm".  
 
 Once the instance is online, XDMoD must be initialized and the ingest queue activated:
 
