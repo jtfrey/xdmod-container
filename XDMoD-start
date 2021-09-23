@@ -42,13 +42,21 @@ for subdir in in out error; do
     fi
 done
 
+# Set variables for xdmod-shredder
+if [ -z "$CLUSTER_NAME" ]; then
+    CLUSTER_NAME="darwin"
+fi
+if [ -z "$RESOURCE_LOG_FORMAT" ]; then
+    RESOURCE_FORMAT="slurm"
+fi
+
 # Enter our infinite runloop:
 while true; do
     if [ -e /var/lib/XDMoD-ingest-queue/enable ]; then
         out_count=0
         for infile in /var/lib/XDMoD-ingest-queue/in/*; do
             if [ -f "$infile" ]; then
-                ingest_output="$(xdmod-shredder -r cc3 -f slurm -i "$infile" 2>&1)"
+                ingest_output="$(xdmod-shredder -r $CLUSTER_NAME -f $RESOURCE_LOG_FORMAT -i "$infile" 2>&1)"
                 if [ $? -ne 0 ]; then
                     mv "$infile" /var/lib/XDMoD-ingest-queue/error
                     ingest_log "unable to process $infile" "$ingest_output"
